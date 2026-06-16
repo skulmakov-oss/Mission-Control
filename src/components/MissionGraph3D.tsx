@@ -46,20 +46,16 @@ export function MissionGraph3D({ graphState, onSelect, edgeFilters, selected }: 
     return () => observer.disconnect();
   }, []);
 
-  const { enhancedNodes, links, highlightNodes, highlightLinks } = useMemo(() => {
-    const nodes = graphState.nodes;
-    const links = graphState.links;
-
+  const { degreeMap, topLevelFolders, rootId } = useMemo(() => {
     const degreeMap = new Map<string, number>();
     let rootId = "root";
+    const topLevelFolders = new Set<string>();
 
-    nodes.forEach(n => {
+    graphState.nodes.forEach(n => {
       if (n.metadata?.subtype === "project_root") rootId = n.id;
     });
 
-    const topLevelFolders = new Set<string>();
-
-    links.forEach(l => {
+    graphState.links.forEach(l => {
       const srcId = typeof l.source === 'object' ? (l.source as any).id : l.source;
       const tgtId = typeof l.target === 'object' ? (l.target as any).id : l.target;
 
@@ -71,57 +67,38 @@ export function MissionGraph3D({ graphState, onSelect, edgeFilters, selected }: 
       }
     });
 
+    return { degreeMap, topLevelFolders, rootId };
+  }, [graphState.nodes, graphState.links]);
+
+  const { highlightNodes, highlightLinks } = useMemo(() => {
     const activeNode = selected?.type === "node" ? selected.value : hoverNode;
+    if (!activeNode) return { highlightNodes: null, highlightLinks: null };
+
     const activeNodes = new Set<string>();
     const activeLinks = new Set<string>();
-
-    if (activeNode) {
-      activeNodes.add(activeNode.id);
-      links.forEach(l => {
-        const srcId = typeof l.source === 'object' ? (l.source as any).id : l.source;
-        const tgtId = typeof l.target === 'object' ? (l.target as any).id : l.target;
-        
-        if (srcId === activeNode.id || tgtId === activeNode.id) {
-          activeLinks.add((l as any).id || `${srcId}-${tgtId}-${l.type}`);
-          activeNodes.add(srcId);
-          activeNodes.add(tgtId);
-        }
-      });
-    }
-
-    const enhancedNodes = nodes.map(n => {
-      const degree = degreeMap.get(n.id) || 0;
-      let val = n.val;
-      let isRoot = n.id === rootId;
-      let isTop = topLevelFolders.has(n.id);
+    activeNodes.add(activeNode.id);
+    
+    graphState.links.forEach(l => {
+      const srcId = typeof l.source === 'object' ? (l.source as any).id : l.source;
+      const tgtId = typeof l.target === 'object' ? (l.target as any).id : l.target;
       
-      let boost = Math.min(Math.log(1 + degree) * 2, 10);
-      if (isRoot) boost += 8;
-      else if (isTop) boost += 4;
-      
-      return {
-        ...n,
-        val: val + boost,
-        isRoot,
-        isTopLevel: isTop
-      };
+      if (srcId === activeNode.id || tgtId === activeNode.id) {
+        activeLinks.add((l as any).id || `${srcId}-${tgtId}-${l.type}`);
+        activeNodes.add(srcId);
+        activeNodes.add(tgtId);
+      }
     });
 
-    return { 
-      enhancedNodes, 
-      links, 
-      highlightNodes: activeNode ? activeNodes : null, 
-      highlightLinks: activeNode ? activeLinks : null 
-    };
-  }, [graphState.nodes, graphState.links, selected, hoverNode]);
+    return { highlightNodes: activeNodes, highlightLinks: activeLinks };
+  }, [graphState.links, selected, hoverNode]);
 
   const graphData = useMemo(() => ({
-    nodes: enhancedNodes,
-    links: links
-  }), [enhancedNodes, links]);
+    nodes: graphState.nodes,
+    links: graphState.links
+  }), [graphState.nodes, graphState.links]);
 
   useEffect(() => {
-    if (!graphRef.current || enhancedNodes.length === 0) return;
+    if (!graphRef.current || graphState.nodes.length === 0) return;
 
     graphRef.current.d3Force("charge")?.strength(-180);
     graphRef.current.d3Force("link")?.distance((link: VisualLink) => {
@@ -130,7 +107,7 @@ export function MissionGraph3D({ graphState, onSelect, edgeFilters, selected }: 
       if (link.status === "conflict") return 160;
       return 100;
     });
-  }, [enhancedNodes.length, links.length]);
+  }, [graphState.nodes.length, graphState.links.length]);
 
   return (
     <div className="graph-shell" ref={containerRef}>
@@ -143,7 +120,13 @@ export function MissionGraph3D({ graphState, onSelect, edgeFilters, selected }: 
           backgroundColor="rgba(2, 6, 23, 0)"
           nodeAutoColorBy={undefined}
           nodeId="id"
-          nodeVal={(node: any) => node.val}
+          nodeVal={(node: any) => {
+            const degree = degreeMap.get(node.id) || 0;
+            let boost = Math.min(Math.log(1 + degree) * 2, 10);
+            if (node.id === rootId) boost += 8;
+            else if (topLevelFolders.has(node.id)) boost += 4;
+            return node.val + boost;
+          }}
           nodeColor={(node: any) => {
             if (highlightNodes) {
               return highlightNodes.has(node.id) ? node.color : 'rgba(100, 100, 100, 0.1)';
@@ -155,14 +138,16 @@ export function MissionGraph3D({ graphState, onSelect, edgeFilters, selected }: 
           nodeThreeObject={(node: any) => {
             const isSelected = selected?.type === "node" && selected.value.id === node.id;
             const isHovered = hoverNode && hoverNode.id === node.id;
-            const showLabel = isSelected || isHovered || node.isRoot || node.isTopLevel || (enhancedNodes.length <= 50);
+            const isRoot = node.id === rootId;
+            const isTopLevel = topLevelFolders.has(node.id);
+            const showLabel = isSelected || isHovered || isRoot || isTopLevel || (graphState.nodes.length <= 50);
             
             if (!showLabel) return null;
 
             const label = getNodeDisplayLabel(node);
             const sprite = new SpriteText(label);
             sprite.color = isSelected ? '#ffffff' : '#e2e8f0';
-            sprite.textHeight = isSelected ? 6 : (node.isRoot ? 8 : 4);
+            sprite.textHeight = isSelected ? 6 : (isRoot ? 8 : 4);
             sprite.backgroundColor = 'rgba(0,0,0,0.6)';
             sprite.padding = 2;
             sprite.borderRadius = 2;
