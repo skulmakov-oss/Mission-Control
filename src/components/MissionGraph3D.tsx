@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph3D from "react-force-graph-3d";
 import type { GraphState, VisualLink, VisualNode } from "../domain/events";
 import type { SelectedGraphItem } from "./InspectorPanel";
@@ -23,6 +23,17 @@ function linkWidth(link: VisualLink): number {
 
 export function MissionGraph3D({ graphState, onSelect }: MissionGraph3DProps) {
   const graphRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dim, setDim] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setDim({ w: entry.contentRect.width, h: entry.contentRect.height });
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const graphData = useMemo(
     () => ({
@@ -45,11 +56,14 @@ export function MissionGraph3D({ graphState, onSelect }: MissionGraph3DProps) {
   }, [graphState.nodes.length, graphState.links.length]);
 
   return (
-    <div className="graph-shell">
-      <ForceGraph3D
-        ref={graphRef}
-        graphData={graphData}
-        backgroundColor="rgba(2, 6, 23, 0)"
+    <div className="graph-shell" ref={containerRef}>
+      {dim.w > 0 && (
+        <ForceGraph3D
+          ref={graphRef}
+          width={dim.w}
+          height={dim.h}
+          graphData={graphData}
+          backgroundColor="rgba(2, 6, 23, 0)"
         nodeAutoColorBy={undefined}
         nodeId="id"
         nodeVal={(node: VisualNode) => node.val}
@@ -69,6 +83,7 @@ export function MissionGraph3D({ graphState, onSelect }: MissionGraph3DProps) {
         enableNodeDrag
         cooldownTicks={80}
       />
+      )}
 
       <div className="graph-overlay">
         <span>3D Semantic Projection</span>

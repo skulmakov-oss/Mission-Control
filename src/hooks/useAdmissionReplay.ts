@@ -7,7 +7,11 @@ import type { GraphState, SemanticGraphEvent } from "../domain/events";
 const PLAYBACK_INTERVAL_MS = 650;
 
 export function useAdmissionReplay() {
-  const events = useMemo(() => parseJsonlEvents(mockAdmissionRun), []);
+  const defaultEvents = useMemo(() => parseJsonlEvents(mockAdmissionRun), []);
+  const [events, setEvents] = useState<SemanticGraphEvent[]>(defaultEvents);
+  const [sourceLabel, setSourceLabel] = useState("mock-admission-run.jsonl");
+  const [error, setError] = useState<string | null>(null);
+
   const [cursor, setCursor] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [graphState, setGraphState] = useState<GraphState>(emptyGraphState);
@@ -26,6 +30,15 @@ export function useAdmissionReplay() {
   }, [events]);
 
   const reset = useCallback(() => {
+    setIsPlaying(false);
+    setCursor(0);
+    setGraphState(emptyGraphState);
+  }, []);
+
+  const loadEvents = useCallback((newEvents: SemanticGraphEvent[], label: string) => {
+    setEvents(newEvents);
+    setSourceLabel(label);
+    setError(null);
     setIsPlaying(false);
     setCursor(0);
     setGraphState(emptyGraphState);
@@ -58,15 +71,19 @@ export function useAdmissionReplay() {
   }, [cursor, events.length, isPlaying, step]);
 
   return {
-    events: events as SemanticGraphEvent[],
+    events,
     graphState,
     cursor,
     isPlaying,
     progress: events.length === 0 ? 0 : cursor / events.length,
+    sourceLabel,
+    error,
     play,
     pause,
     replay,
     reset,
     step,
+    loadEvents,
+    setError,
   };
 }

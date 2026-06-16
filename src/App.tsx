@@ -26,6 +26,8 @@ export function App() {
           cursor={replay.cursor}
           totalEvents={replay.events.length}
           progress={replay.progress}
+          sourceLabel={replay.sourceLabel}
+          error={replay.error}
           onPlay={replay.play}
           onPause={replay.pause}
           onStep={replay.step}
@@ -34,6 +36,8 @@ export function App() {
             setSelected(undefined);
             replay.reset();
           }}
+          onLoadEvents={replay.loadEvents}
+          onError={replay.setError}
         />
 
         <StatsPanel graphState={replay.graphState} />
@@ -58,7 +62,7 @@ export function App() {
         <MissionGraph3D graphState={replay.graphState} onSelect={setSelected} />
       </section>
 
-      <InspectorPanel selected={selected} events={replay.graphState.events} />
+      <InspectorPanel selected={selected} events={replay.events.slice(0, replay.cursor)} />
     </main>
   );
 }
