@@ -8,6 +8,7 @@ import { useAdmissionReplay } from "./hooks/useAdmissionReplay";
 export function App() {
   const replay = useAdmissionReplay();
   const [selected, setSelected] = useState<SelectedGraphItem>();
+  const [edgeFilters, setEdgeFilters] = useState({ contains: true, imports: true });
 
   return (
     <main className="app-shell">
@@ -38,6 +39,8 @@ export function App() {
           }}
           onLoadEvents={replay.loadEvents}
           onError={replay.setError}
+          edgeFilters={edgeFilters}
+          onEdgeFiltersChange={setEdgeFilters}
         />
 
         <StatsPanel graphState={replay.graphState} />
@@ -59,10 +62,14 @@ export function App() {
       </aside>
 
       <section className="stage-panel">
-        <MissionGraph3D graphState={replay.graphState} onSelect={setSelected} />
+        <MissionGraph3D 
+          graphState={replay.graphState} 
+          onSelect={setSelected} 
+          edgeFilters={edgeFilters} 
+        />
       </section>
 
-      <InspectorPanel selected={selected} events={replay.events.slice(0, replay.cursor)} />
+      <InspectorPanel selected={selected} events={replay.events.slice(0, replay.cursor)} graphState={replay.graphState} />
     </main>
   );
 }

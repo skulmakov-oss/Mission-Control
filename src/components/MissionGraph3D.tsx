@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph3D from "react-force-graph-3d";
+import SpriteText from "three-spritetext";
 import type { GraphState, VisualLink, VisualNode } from "../domain/events";
 import type { SelectedGraphItem } from "./InspectorPanel";
 
 type MissionGraph3DProps = {
   graphState: GraphState;
-  onSelect: (item: SelectedGraphItem) => void;
+  onSelect: (item: SelectedGraphItem | undefined) => void;
+  edgeFilters?: { contains: boolean; imports: boolean };
+  selected?: SelectedGraphItem;
 };
 
 function linkParticles(link: VisualLink): number {
@@ -21,10 +24,18 @@ function linkWidth(link: VisualLink): number {
   return 1.4;
 }
 
-export function MissionGraph3D({ graphState, onSelect }: MissionGraph3DProps) {
+function getNodeDisplayLabel(node: any): string {
+  if (node.label) return node.label;
+  if (node.metadata?.name) return node.metadata.name;
+  if (node.metadata?.path) return node.metadata.path.split('/').pop() || node.id;
+  return node.id;
+}
+
+export function MissionGraph3D({ graphState, onSelect, edgeFilters, selected }: MissionGraph3DProps) {
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dim, setDim] = useState({ w: 0, h: 0 });
+  const [hoverNode, setHoverNode] = useState<any>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -35,13 +46,56 @@ export function MissionGraph3D({ graphState, onSelect }: MissionGraph3DProps) {
     return () => observer.disconnect();
   }, []);
 
-  const graphData = useMemo(
-    () => ({
-      nodes: graphState.nodes,
-      links: graphState.links,
-    }),
-    [graphState.links, graphState.nodes],
-  );
+  const { degreeMap, topLevelFolders, rootId } = useMemo(() => {
+    const degreeMap = new Map<string, number>();
+    let rootId = "root";
+    const topLevelFolders = new Set<string>();
+
+    graphState.nodes.forEach(n => {
+      if (n.metadata?.subtype === "project_root") rootId = n.id;
+    });
+
+    graphState.links.forEach(l => {
+      const srcId = typeof l.source === 'object' ? (l.source as any).id : l.source;
+      const tgtId = typeof l.target === 'object' ? (l.target as any).id : l.target;
+
+      degreeMap.set(srcId, (degreeMap.get(srcId) || 0) + 1);
+      degreeMap.set(tgtId, (degreeMap.get(tgtId) || 0) + 1);
+      
+      if (srcId === rootId && l.type === "contains") {
+        topLevelFolders.add(tgtId);
+      }
+    });
+
+    return { degreeMap, topLevelFolders, rootId };
+  }, [graphState.nodes, graphState.links]);
+
+  const { highlightNodes, highlightLinks } = useMemo(() => {
+    const activeNode = selected?.type === "node" ? selected.value : hoverNode;
+    if (!activeNode) return { highlightNodes: null, highlightLinks: null };
+
+    const activeNodes = new Set<string>();
+    const activeLinks = new Set<string>();
+    activeNodes.add(activeNode.id);
+    
+    graphState.links.forEach(l => {
+      const srcId = typeof l.source === 'object' ? (l.source as any).id : l.source;
+      const tgtId = typeof l.target === 'object' ? (l.target as any).id : l.target;
+      
+      if (srcId === activeNode.id || tgtId === activeNode.id) {
+        activeLinks.add((l as any).id || `${srcId}-${tgtId}-${l.type}`);
+        activeNodes.add(srcId);
+        activeNodes.add(tgtId);
+      }
+    });
+
+    return { highlightNodes: activeNodes, highlightLinks: activeLinks };
+  }, [graphState.links, selected, hoverNode]);
+
+  const graphData = useMemo(() => ({
+    nodes: graphState.nodes,
+    links: graphState.links
+  }), [graphState.nodes, graphState.links]);
 
   useEffect(() => {
     if (!graphRef.current || graphState.nodes.length === 0) return;
@@ -64,25 +118,71 @@ export function MissionGraph3D({ graphState, onSelect }: MissionGraph3DProps) {
           height={dim.h}
           graphData={graphData}
           backgroundColor="rgba(2, 6, 23, 0)"
-        nodeAutoColorBy={undefined}
-        nodeId="id"
-        nodeVal={(node: VisualNode) => node.val}
-        nodeColor={(node: VisualNode) => node.color}
-        nodeLabel={(node: VisualNode) => `${node.kind}: ${node.label}\n${node.status}`}
-        linkSource="source"
-        linkTarget="target"
-        linkColor={(link: VisualLink) => link.color}
-        linkWidth={(link: VisualLink) => linkWidth(link)}
-        linkDirectionalArrowLength={4}
-        linkDirectionalArrowRelPos={1}
-        linkDirectionalParticles={(link: VisualLink) => linkParticles(link)}
-        linkDirectionalParticleWidth={(link: VisualLink) => (link.status === "conflict" ? 4 : 2)}
-        linkDirectionalParticleSpeed={(link: VisualLink) => (link.status === "conflict" ? 0.012 : 0.006)}
-        onNodeClick={(node: VisualNode) => onSelect({ type: "node", value: node })}
-        onLinkClick={(link: VisualLink) => onSelect({ type: "edge", value: link })}
-        enableNodeDrag
-        cooldownTicks={80}
-      />
+          nodeAutoColorBy={undefined}
+          nodeId="id"
+          nodeVal={(node: any) => {
+            const degree = degreeMap.get(node.id) || 0;
+            let boost = Math.min(Math.log(1 + degree) * 2, 10);
+            if (node.id === rootId) boost += 8;
+            else if (topLevelFolders.has(node.id)) boost += 4;
+            return node.val + boost;
+          }}
+          nodeColor={(node: any) => {
+            if (highlightNodes) {
+              return highlightNodes.has(node.id) ? node.color : 'rgba(100, 100, 100, 0.1)';
+            }
+            return node.color;
+          }}
+          nodeLabel={(node: any) => `${node.kind}: ${node.label}\n${node.status}`}
+          onNodeHover={setHoverNode}
+          nodeThreeObject={(node: any) => {
+            const isSelected = selected?.type === "node" && selected.value.id === node.id;
+            const isHovered = hoverNode && hoverNode.id === node.id;
+            const isRoot = node.id === rootId;
+            const isTopLevel = topLevelFolders.has(node.id);
+            const showLabel = isSelected || isHovered || isRoot || isTopLevel || (graphState.nodes.length <= 50);
+            
+            if (!showLabel) return null;
+
+            const label = getNodeDisplayLabel(node);
+            const sprite = new SpriteText(label);
+            sprite.color = isSelected ? '#ffffff' : '#e2e8f0';
+            sprite.textHeight = isSelected ? 6 : (isRoot ? 8 : 4);
+            sprite.backgroundColor = 'rgba(0,0,0,0.6)';
+            sprite.padding = 2;
+            sprite.borderRadius = 2;
+            (sprite as any).position.y = 12;
+            return sprite;
+          }}
+          nodeThreeObjectExtend={true}
+          linkSource="source"
+          linkTarget="target"
+          linkColor={(link: any) => {
+            if (highlightLinks) {
+              const linkId = link.id || `${link.source.id || link.source}-${link.target.id || link.target}-${link.type}`;
+              return highlightLinks.has(linkId) ? link.color : 'rgba(100, 100, 100, 0.05)';
+            }
+            return link.color;
+          }}
+          linkWidth={(link: VisualLink) => highlightLinks ? 0.5 : linkWidth(link)}
+          linkVisibility={(link: VisualLink) => {
+            if (edgeFilters) {
+              if (link.type === "contains" && !edgeFilters.contains) return false;
+              if (link.type === "imports" && !edgeFilters.imports) return false;
+            }
+            return true;
+          }}
+          linkDirectionalArrowLength={4}
+          linkDirectionalArrowRelPos={1}
+          linkDirectionalParticles={(link: VisualLink) => linkParticles(link)}
+          linkDirectionalParticleWidth={(link: VisualLink) => (link.status === "conflict" ? 4 : 2)}
+          linkDirectionalParticleSpeed={(link: VisualLink) => (link.status === "conflict" ? 0.012 : 0.006)}
+          onNodeClick={(node: any) => onSelect({ type: "node", value: node })}
+          onBackgroundClick={() => onSelect(undefined)}
+          onLinkClick={(link: any) => onSelect({ type: "edge", value: link })}
+          enableNodeDrag
+          cooldownTicks={80}
+        />
       )}
 
       <div className="graph-overlay">

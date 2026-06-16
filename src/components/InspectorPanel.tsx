@@ -1,4 +1,4 @@
-import type { SemanticGraphEvent, VisualLink, VisualNode } from "../domain/events";
+import type { SemanticGraphEvent, VisualLink, VisualNode, GraphState } from "../domain/events";
 
 export type SelectedGraphItem =
   | { type: "node"; value: VisualNode }
@@ -8,6 +8,7 @@ export type SelectedGraphItem =
 type InspectorPanelProps = {
   selected: SelectedGraphItem;
   events: SemanticGraphEvent[];
+  graphState: GraphState;
 };
 
 function formatLocation(node: VisualNode): string {
@@ -16,7 +17,27 @@ function formatLocation(node: VisualNode): string {
   return `${node.file}${lines}`;
 }
 
-export function InspectorPanel({ selected, events }: InspectorPanelProps) {
+export function InspectorPanel({ selected, events, graphState }: InspectorPanelProps) {
+  const outgoingLinks = selected?.type === "node" 
+    ? graphState.links.filter((l: any) => (typeof l.source === 'object' ? (l.source as any).id : l.source) === selected.value.id) 
+    : [];
+  
+  const incomingLinks = selected?.type === "node" 
+    ? graphState.links.filter((l: any) => (typeof l.target === 'object' ? (l.target as any).id : l.target) === selected.value.id) 
+    : [];
+
+  const getTargetName = (link: any) => {
+    const tgtId = typeof link.target === 'object' ? link.target.id : link.target;
+    const tgtNode = graphState.nodes.find((n: any) => n.id === tgtId);
+    return tgtNode ? (tgtNode.label || tgtId) : tgtId;
+  };
+
+  const getSourceName = (link: any) => {
+    const srcId = typeof link.source === 'object' ? link.source.id : link.source;
+    const srcNode = graphState.nodes.find((n: any) => n.id === srcId);
+    return srcNode ? (srcNode.label || srcId) : srcId;
+  };
+
   return (
     <aside className="side-panel right-panel">
       <section className="panel inspector-panel">
@@ -44,6 +65,34 @@ export function InspectorPanel({ selected, events }: InspectorPanelProps) {
               <dt>Z layer</dt>
               <dd>{selected.value.layer}</dd>
             </dl>
+
+            {outgoingLinks.length > 0 && (
+              <>
+                <h4 style={{ marginTop: "16px", marginBottom: "8px", fontSize: "12px", textTransform: "uppercase", color: "#94a3b8" }}>Outgoing Relations</h4>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "13px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {outgoingLinks.map((l: any) => (
+                    <li key={l.id || `${l.type}-${l.source}-${l.target}`} style={{ display: "flex", gap: "6px" }}>
+                      <span style={{ color: "#60a5fa", minWidth: "60px" }}>{l.type}</span>
+                      <span style={{ color: "#e2e8f0", wordBreak: "break-all" }}>{getTargetName(l)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {incomingLinks.length > 0 && (
+              <>
+                <h4 style={{ marginTop: "16px", marginBottom: "8px", fontSize: "12px", textTransform: "uppercase", color: "#94a3b8" }}>Incoming Relations</h4>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "13px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {incomingLinks.map((l: any) => (
+                    <li key={l.id || `${l.type}-${l.source}-${l.target}`} style={{ display: "flex", gap: "6px" }}>
+                      <span style={{ color: "#fb923c", minWidth: "60px" }}>{l.type}</span>
+                      <span style={{ color: "#e2e8f0", wordBreak: "break-all" }}>{getSourceName(l)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         )}
 

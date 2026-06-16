@@ -17,6 +17,8 @@ type ControlPanelProps = {
   onReset: () => void;
   onLoadEvents?: (events: SemanticGraphEvent[], filename: string) => void;
   onError?: (err: string) => void;
+  edgeFilters?: { contains: boolean; imports: boolean };
+  onEdgeFiltersChange?: (filters: { contains: boolean; imports: boolean }) => void;
 };
 
 export function ControlPanel({
@@ -33,6 +35,8 @@ export function ControlPanel({
   onReset,
   onLoadEvents,
   onError,
+  edgeFilters,
+  onEdgeFiltersChange,
 }: ControlPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -132,6 +136,27 @@ export function ControlPanel({
           {cursor} / {totalEvents}
         </strong>
       </div>
+
+      {edgeFilters && onEdgeFiltersChange && (
+        <div className="edge-filters" style={{ marginTop: "14px", display: "flex", gap: "12px", fontSize: "13px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <input 
+              type="checkbox" 
+              checked={edgeFilters.contains} 
+              onChange={(e) => onEdgeFiltersChange({ ...edgeFilters, contains: e.target.checked })} 
+            />
+            Contains
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <input 
+              type="checkbox" 
+              checked={edgeFilters.imports} 
+              onChange={(e) => onEdgeFiltersChange({ ...edgeFilters, imports: e.target.checked })} 
+            />
+            Imports
+          </label>
+        </div>
+      )}
     </section>
   );
 }
