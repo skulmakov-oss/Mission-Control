@@ -20,6 +20,32 @@ Canonical semantic graph
 Inspector / timeline / replay / source navigation
 ```
 
+## Current prototype
+
+The repository now contains the first v1 prototype:
+
+```text
+Vite + React + TypeScript
+react-force-graph-3d / Three.js
+Input: JSONL event stream (local/mock)
+Input: Raw Admission Guard JSON (auto-adapted)
+Input: Local Project Folder structural scanner
+3D semantic graph scene
+node / edge inspector
+event log
+```
+
+Run it locally:
+
+```bash
+npm install
+npm run dev
+```
+
+Then open the Vite URL and press **Play**.
+
+The prototype loads `examples/mock-admission-run.jsonl`, replays the events one by one, builds the canonical graph state and projects it into a rotatable 3D scene.
+
 ## Vision
 
 When a developer writes Semantic code or runs a PR through Admission Guard, Mission Control should be able to build a living visual graph of the system:
@@ -141,6 +167,14 @@ Typical edge kinds:
 ```text
 Mission-Control/
 ├─ README.md
+├─ package.json
+├─ index.html
+├─ src/
+│  ├─ App.tsx
+│  ├─ main.tsx
+│  ├─ components/
+│  ├─ domain/
+│  └─ hooks/
 ├─ docs/
 │  ├─ architecture.md
 │  ├─ roadmap.md
@@ -171,6 +205,14 @@ For now, Mission Control describes the whole visual control layer. Individual mo
 
 ## Status
 
-Current status: **foundation / design seed**.
+Current status: **v1 prototype runtime validation completed (P0/P0.5)**.
 
-This repository currently defines the first architecture, roadmap, event protocol and Semantic-native direction. Executable runtime code will be added after the initial contracts are stable.
+The prototype successfully validates the loop from multiple data sources into a deterministic canonical graph:
+
+```text
+JSONL events                 \
+Raw AG JSON                   -> graph reducer -> 3D graph -> inspector / event log
+Local Project Folder Scanner /
+```
+
+Next steps involve finalizing the Mission Control DNA / Doctrine (Draft PR #7) and preparing the tool to receive real-time streams from Semantic Studio / Admission Guard.
