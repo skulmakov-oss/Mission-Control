@@ -27,7 +27,9 @@ The repository now contains the first v1 prototype:
 ```text
 Vite + React + TypeScript
 react-force-graph-3d / Three.js
-JSONL Admission Guard replay
+Input: JSONL event stream (local/mock)
+Input: Raw Admission Guard JSON (auto-adapted)
+Input: Local Project Folder structural scanner
 3D semantic graph scene
 node / edge inspector
 event log
@@ -203,12 +205,14 @@ For now, Mission Control describes the whole visual control layer. Individual mo
 
 ## Status
 
-Current status: **v1 prototype seed**.
+Current status: **v1 prototype runtime validation completed (P0/P0.5)**.
 
-The prototype is intentionally small. It proves the loop:
+The prototype successfully validates the loop from multiple data sources into a deterministic canonical graph:
 
 ```text
-JSONL events -> graph reducer -> 3D graph -> inspector / event log
+JSONL events                 \
+Raw AG JSON                   -> graph reducer -> 3D graph -> inspector / event log
+Local Project Folder Scanner /
 ```
 
-The next step is to connect the viewer to a real Admission Guard event producer.
+Next steps involve finalizing the Mission Control DNA / Doctrine (Draft PR #7) and preparing the tool to receive real-time streams from Semantic Studio / Admission Guard.
