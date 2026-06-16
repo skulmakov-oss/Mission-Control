@@ -5,7 +5,6 @@ export const emptyGraphState: GraphState = {
   status: "idle",
   nodes: [],
   links: [],
-  events: [],
   conflicts: [],
 };
 
@@ -84,7 +83,6 @@ export function applyGraphEvent(state: GraphState, event: SemanticGraphEvent): G
   const base: GraphState = {
     ...state,
     runId: event.run_id,
-    events: [...state.events, event],
   };
 
   switch (event.event) {
@@ -157,6 +155,7 @@ export function applyGraphEvent(state: GraphState, event: SemanticGraphEvent): G
     }
 
     default:
+      console.warn(`[Mission Control] Unsupported event type: ${(event as any).event}`);
       return base;
   }
 }

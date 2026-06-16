@@ -114,7 +114,6 @@ export type GraphState = {
   status: "idle" | "running" | "completed";
   nodes: VisualNode[];
   links: VisualLink[];
-  events: SemanticGraphEvent[];
   verdict?: AdmissionVerdict;
   conflicts: Record<string, unknown>[];
 };
